@@ -13,14 +13,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/config
+# Create necessary directories and symbolic links
+RUN mkdir -p /app/config /app/data && \
+    ln -s /app/config /config && \
+    ln -s /app/data /data
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
 # Define volumes
-VOLUME ["/app/data", "/app/config"]
+VOLUME ["/data", "/config"]
 
 # Run the application
 CMD ["python", "main.py"] 
