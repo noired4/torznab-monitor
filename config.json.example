@@ -1,0 +1,18 @@
+{
+    "torznab": {
+        "endpoints": {
+            "endpoint1": {
+                "url": "http://your-prowlarr-host:9696/1/api?apikey=YOUR_API_KEY&extended=1&t=search",
+                "categories": ["100069"],
+                "poll_interval": 1800
+            }
+        }
+    },
+    "notifiarr": {
+        "url": "https://notifiarr.com/api/v1/notification/passthrough",
+        "api_key": "YOUR_NOTIFIARR_API_KEY",
+        "discord": {
+            "channel_id": YOUR_DISCORD_CHANNEL_ID
+        }
+    }
+} 

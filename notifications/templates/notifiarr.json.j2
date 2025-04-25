@@ -1,0 +1,39 @@
+{
+    "notification": {
+        "update": {{ update|default(false)|tojson }},
+        "name": "{{ name|default('Torznab-Monitor Notification') }}",
+        "event": "{{ event|default('') }}"
+    },
+    "discord": {
+        "color": "{{ color|default('00FF00') }}",
+        "ping": {
+            "pingUser": {{ ping_user|default(0)|int }},
+            "pingRole": {{ ping_role|default(0)|int }}
+        },
+        "images": {
+            "thumbnail": "{{ thumbnail|default('') }}",
+            "image": "{{ image|default('') }}"
+        },
+        "text": {
+            "title": "{{ title }}",
+            "icon": "{{ icon|default('') }}",
+            "content": "{{ content|default('Content') }}",
+            "description": "{{ description|default('') }}",
+            {% if fields %}
+            "fields": [
+                {% for field in fields %}
+                {
+                    "title": "{{ field.title }}",
+                    "text": "{{ field.text }}",
+                    "inline": {{ field.inline|default(false)|tojson }}
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            {% endif %}
+            "footer": "{{ footer|default('') }}"
+        },
+        "ids": {
+            "channel": {{ channel_id }}
+        }
+    }
+} 

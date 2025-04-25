@@ -1,0 +1,31 @@
+{
+    "mappings": {
+        "endpoint1-notifiarr": {
+            "title": {
+                "type": "xml_tag",
+                "path": "title"
+            },
+            "name": {
+                "type": "static",
+                "value": "New torrent available"
+            },
+            "description": {
+                "type": "xml_tag",
+                "path": "comments"
+            },
+            "image": {
+                "type": "torznab_attr",
+                "name": "coverurl",
+                "select": "first"
+            },
+            "thumbnail": {
+                "type": "static",
+                "value": "https://example.com/thumbnail.png"
+            },
+            "icon": {
+                "type": "static",
+                "value": "https://example.com/icon.png"
+            }
+        }
+    }
+} 
