@@ -70,12 +70,12 @@ class TorznabMonitor:
 
     def _ensure_data_directory(self) -> None:
         """Ensure the data directory exists."""
-        data_dir = Path("data")
+        data_dir = Path("/data")
         data_dir.mkdir(parents=True, exist_ok=True)
         
     def _get_seen_file_path(self, mapping_name: str) -> Path:
         """Get the path to the seen file for a specific mapping."""
-        return Path("data") / f"seen_{mapping_name}.json"
+        return Path("/data") / f"seen_{mapping_name}.json"
         
     def _load_seen(self, mapping_name: str) -> Set[str]:
         """Load seen entries from file for a specific mapping."""
@@ -291,12 +291,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--config',
-        default='config.json',
+        default='config/config.json',
         help='Path to configuration file (default: config.json)'
     )
     parser.add_argument(
         '--mapping',
-        default='notification_mapping.json',
+        default='config/notification_mapping.json',
         help='Path to notification mapping file (default: notification_mapping.json)'
     )
     parser.add_argument(
