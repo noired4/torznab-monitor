@@ -165,7 +165,7 @@ class TorznabMonitor:
         except Exception as e:
             logger.error(f"Failed to send notification: {e}", exc_info=True)
 
-    def _fetch_torznab_feed(self, endpoint: TorznabEndpoint) -> Tuple[ET.Element, List[ET.Element]]:
+    def _fetch_torznab_feed(self, endpoint: TorznabEndpoint) -> List[ET.Element]:
         """
         Fetch and parse the Torznab feed for a given endpoint.
         
@@ -173,7 +173,7 @@ class TorznabMonitor:
             endpoint: The Torznab endpoint to fetch from
             
         Returns:
-            Tuple containing the root element and list of item elements.
+            List of item elements from the feed.
             
         Raises:
             requests.RequestException: If the request fails.
@@ -196,7 +196,7 @@ class TorznabMonitor:
             logger.debug(f"Link: {first_item.find('link').text if first_item.find('link') is not None else 'No link'}")
             logger.debug(f"Categories: {list(self._extract_categories(first_item))}")
             
-        return root, items
+        return items
 
     def _process_items(self, items: List[ET.Element], categories: Set[str], mapping_name: str) -> List[ET.Element]:
         """
@@ -251,7 +251,7 @@ class TorznabMonitor:
         mapping_name = f"{endpoint.name}-notifiarr"
         
         try:
-            _, items = self._fetch_torznab_feed(endpoint)
+            items = self._fetch_torznab_feed(endpoint)
             
             # Process items in reverse order to maintain FIFO
             matching_items = self._process_items(reversed(items), endpoint.categories, mapping_name)
@@ -264,7 +264,7 @@ class TorznabMonitor:
         except Exception as e:
             logger.error(f"Error polling Torznab feed: {e}", exc_info=True)
 
-    def _initialize_seen_items(self, endpoint: TorznabEndpoint) -> None:
+    def _init_torznab(self, endpoint: TorznabEndpoint) -> None:
         """
         Initialize seen items with current feed items without sending notifications.
         Only items matching the configured categories will be marked as seen.
@@ -280,7 +280,7 @@ class TorznabMonitor:
             # Clear existing seen items file
             self._clear_seen(mapping_name)
 
-            _, items = self._fetch_torznab_feed(endpoint)
+            items = self._fetch_torznab_feed(endpoint)
             
             # Process items without sending notifications
             matching_items = self._process_items(items, endpoint.categories, mapping_name)
@@ -297,7 +297,7 @@ class TorznabMonitor:
         # Initialize seen items first if not skipped
         if not self.skip_init:
             for endpointKey in endpointDict:
-                self._initialize_seen_items(endpointDict[endpointKey])
+                self._init_torznab(endpointDict[endpointKey])
         else:
             logger.info("Skipping seen items initialization")
         
