@@ -103,6 +103,13 @@ class TorznabMonitor:
         except IOError as e:
             logger.error(f"Failed to save seen entries for {mapping_name}: {e}")
 
+    def _clear_seen(self, mapping_name: str) -> None:
+        """Clear the seen items file for a specific mapping."""
+        seen_file = self._get_seen_file_path(mapping_name)
+        if seen_file.exists():
+            logger.info(f"Clearing existing seen items file for {mapping_name}")
+            seen_file.unlink()
+
     def _clean_guid(self, guid: str) -> str:
         """
         Clean the GUID URL by keeping only the id parameter.
@@ -191,6 +198,48 @@ class TorznabMonitor:
             
         return root, items
 
+    def _process_items(self, items: List[ET.Element], categories: Set[str], mapping_name: str) -> List[ET.Element]:
+        """
+        Process a list of Torznab items, filtering by category and tracking seen items.
+        Seen items are saved immediately after processing.
+        
+        Args:
+            items: List of XML item elements to process
+            categories: Set of categories to filter by
+            mapping_name: Name of the mapping for seen items tracking
+            
+        Returns:
+            List of matching items that need notifications
+        """
+        seen = self._load_seen(mapping_name)
+        matching_items = []
+        
+        for item in items:
+            guid = item.find('guid').text if item.find('guid') is not None else None
+            title = item.find('title').text if item.find('title') is not None else "No title"
+            
+            if not guid:
+                logger.debug(f"Skipping item '{title}' - no GUID")
+                continue
+
+            # Clean the GUID before checking
+            cleaned_guid = self._clean_guid(guid)
+            if cleaned_guid in seen:
+                logger.debug(f"Skipping item '{title}' - already seen")
+                continue
+
+            item_categories = self._extract_categories(item)
+            if categories & item_categories:
+                logger.info(f"Found matching categories for item '{title}'")
+                matching_items.append(item)
+                seen.add(cleaned_guid)
+            else:
+                logger.debug(f"No matching categories for item '{title}'")
+        
+        # Save seen items after processing
+        self._save_seen(seen, mapping_name)
+        return matching_items
+
     def poll_torznab(self, endpoint: TorznabEndpoint) -> None:
         """
         Poll Torznab feed for new entries.
@@ -200,59 +249,43 @@ class TorznabMonitor:
         """
         logger.info(f"Polling Torznab feed for endpoint: {endpoint.url}")
         mapping_name = f"{endpoint.name}-notifiarr"
-        seen = self._load_seen(mapping_name)
         
         try:
             _, items = self._fetch_torznab_feed(endpoint)
             
             # Process items in reverse order to maintain FIFO
-            for item in reversed(items):
-                guid = item.find('guid').text if item.find('guid') is not None else None
-                title = item.find('title').text if item.find('title') is not None else "No title"
-                
-                if not guid:
-                    logger.debug(f"Skipping item '{title}' - no GUID")
-                    continue
-
-                # Clean the GUID before checking
-                cleaned_guid = self._clean_guid(guid)
-                if cleaned_guid in seen:
-                    logger.debug(f"Skipping item '{title}' - already seen")
-                    continue
-
-                categories = self._extract_categories(item)
-                if endpoint.categories & categories:
-                    logger.info(f"Found matching categories for item '{title}'")
-                    self._send_notification(item, endpoint)
-                    seen.add(cleaned_guid)
-                else:
-                    logger.debug(f"No matching categories for item '{title}'")
-
-            self._save_seen(seen, mapping_name)
-            logger.info(f"Updated seen entries for {mapping_name}: {len(seen)}")
+            matching_items = self._process_items(reversed(items), endpoint.categories, mapping_name)
+            
+            # Send notifications for matching items
+            for item in matching_items:
+                self._send_notification(item, endpoint)
+            
+            logger.info(f"Processed feed for {mapping_name}")
         except Exception as e:
             logger.error(f"Error polling Torznab feed: {e}", exc_info=True)
 
     def _initialize_seen_items(self, endpoint: TorznabEndpoint) -> None:
         """
         Initialize seen items with current feed items without sending notifications.
+        Only items matching the configured categories will be marked as seen.
+        Existing seen items will be cleared before initialization.
         
         Args:
             endpoint: The Torznab endpoint to initialize seen items for.
         """
         logger.info(f"Initializing seen items from current feed for endpoint: {endpoint.url}")
         try:
+            mapping_name = f"{endpoint.name}-notifiarr"
+            
+            # Clear existing seen items file
+            self._clear_seen(mapping_name)
+
             _, items = self._fetch_torznab_feed(endpoint)
             
-            mapping_name = f"{endpoint.name}-notifiarr"
-            seen = set()
-            for item in items:
-                guid = item.find('guid').text if item.find('guid') is not None else None
-                if guid:
-                    seen.add(self._clean_guid(guid))
+            # Process items without sending notifications
+            matching_items = self._process_items(items, endpoint.categories, mapping_name)
             
-            self._save_seen(seen, mapping_name)
-            logger.info(f"Initialized seen items for {mapping_name}: {len(seen)} items")
+            logger.info(f"Initialized seen items for {mapping_name}: {len(matching_items)} items")
         except Exception as e:
             logger.error(f"Failed to initialize seen items: {e}", exc_info=True)
 
