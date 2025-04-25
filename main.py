@@ -3,6 +3,7 @@ import os
 import logging
 import requests
 import argparse
+import sys
 from pathlib import Path
 from typing import Set, Dict, Any, List, Tuple
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -31,16 +32,14 @@ class TorznabMonitor:
         mapping_file = Path(mapping_path)
         
         if not config_file.exists():
-            raise FileNotFoundError(
-                f"Configuration file not found in {config_path}\n"
-                f"Please ensure the file exists at the specified path"
-            )
+            logger.error(f"Configuration file not found in {config_path}")
+            logger.error("Please ensure the file exists at the specified path")
+            sys.exit(1)
             
         if not mapping_file.exists():
-            raise FileNotFoundError(
-                f"Notification mapping file not found in {mapping_path}\n"
-                f"Please ensure the file exists at the specified path"
-            )
+            logger.error(f"Notification mapping file not found in {mapping_path}")
+            logger.error("Please ensure the file exists at the specified path")
+            sys.exit(1)
             
         self.config = self._load_config(str(config_file))
         self.torznab_config = TorznabConfiguration.from_file(str(config_file))
