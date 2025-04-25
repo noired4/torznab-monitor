@@ -290,22 +290,29 @@ class TorznabMonitor:
             logger.error(f"Failed to initialize seen items: {e}", exc_info=True)
 
     def start(self) -> None:
-        """Start the Torznab monitor."""
-        endpoint = self.torznab_config.get_first_endpoint()
-        
+        """Start the Torznab monitor for all configured endpoints."""
+
+        endpointDict = self.torznab_config.endpoints
+
         # Initialize seen items first if not skipped
         if not self.skip_init:
-            self._initialize_seen_items(endpoint)
+            for endpointKey in endpointDict:
+                self._initialize_seen_items(endpointDict[endpointKey])
         else:
             logger.info("Skipping seen items initialization")
         
-        # Start the scheduler
-        self.scheduler.add_job(
-            self.poll_torznab,
-            "interval",
-            seconds=endpoint.poll_interval,
-            args=[endpoint]  # Pass the endpoint to the job
-        )
+        # Start the scheduler for each endpoint
+        for endpointKey in endpointDict:
+            endpoint = endpointDict[endpointKey]
+            self.scheduler.add_job(
+                self.poll_torznab,
+                "interval",
+                seconds=endpoint.poll_interval,
+                args=[endpoint],
+                id=f"poll_{endpointKey}"
+            )
+            logger.info(f"Added polling job for endpoint: {endpoint.name} (interval: {endpoint.poll_interval}s)")
+        
         self.scheduler.start()
         logger.info("Torznab Monitor started. Press Ctrl+C to exit.")
 
