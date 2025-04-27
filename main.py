@@ -1,5 +1,4 @@
 import json
-import os
 import logging
 import requests
 import argparse
@@ -12,6 +11,8 @@ from xml.etree import ElementTree as ET
 from notifications import NotifiarrService
 from configurations.torznab_config import TorznabConfiguration, TorznabEndpoint
 from configurations.notification_config import NotificationConfig
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Create module-level logger
 logger = logging.getLogger(__name__)
@@ -48,6 +49,19 @@ class TorznabMonitor:
             
         self._ensure_data_directory()
         self.scheduler = BackgroundScheduler()
+        
+        # Configure requests session with retry logic
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,  # number of retries
+            backoff_factor=10,  # wait 10, 20, 30 seconds between retries
+            status_forcelist=[500, 502, 503, 504],  # HTTP status codes to retry on
+            allowed_methods=["GET"]  # only retry on GET requests
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
         self.notification_service = NotifiarrService(
             api_key=self.config["notifiarr"]["api_key"],
             channel_id=self.config["notifiarr"]["discord"]["channel_id"],
@@ -179,24 +193,31 @@ class TorznabMonitor:
             requests.RequestException: If the request fails.
             ET.ParseError: If the XML parsing fails.
         """
-        response = requests.get(endpoint.url)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        
-        # Log feed details
-        logger.info(f"Feed version: {root.tag}")
-        items = root.findall('.//item')
-        logger.info(f"Number of entries: {len(items)}")
-        
-        # Log first item details for debugging
-        if items:
-            first_item = items[0]
-            logger.debug("First item details:")
-            logger.debug(f"Title: {first_item.find('title').text if first_item.find('title') is not None else 'No title'}")
-            logger.debug(f"Link: {first_item.find('link').text if first_item.find('link') is not None else 'No link'}")
-            logger.debug(f"Categories: {list(self._extract_categories(first_item))}")
+        try:
+            response = self.session.get(endpoint.url, timeout=120)  # 2 minute timeout
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
             
-        return items
+            # Log feed details
+            logger.info(f"Feed version: {root.tag}")
+            items = root.findall('.//item')
+            logger.info(f"Number of entries: {len(items)}")
+            
+            # Log first item details for debugging
+            if items:
+                first_item = items[0]
+                logger.debug("First item details:")
+                logger.debug(f"Title: {first_item.find('title').text if first_item.find('title') is not None else 'No title'}")
+                logger.debug(f"Link: {first_item.find('link').text if first_item.find('link') is not None else 'No link'}")
+                logger.debug(f"Categories: {list(self._extract_categories(first_item))}")
+                
+            return items
+        except requests.Timeout:
+            logger.error(f"Request timed out after 2 minutes for endpoint: {endpoint.url}")
+            raise
+        except requests.RequestException as e:
+            logger.error(f"Request failed for endpoint {endpoint.url}: {e}")
+            raise
 
     def _process_items(self, items: List[ET.Element], categories: Set[str], mapping_name: str) -> List[ET.Element]:
         """
