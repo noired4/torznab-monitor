@@ -182,12 +182,13 @@ class TorznabMonitor:
     def _fetch_torznab_feed(self, endpoint: TorznabEndpoint) -> List[ET.Element]:
         """
         Fetch and parse the Torznab feed for a given endpoint.
+        Returns items in reverse order (newest first) to maintain FIFO processing.
         
         Args:
             endpoint: The Torznab endpoint to fetch from
             
         Returns:
-            List of item elements from the feed.
+            List of item elements from the feed in reverse order.
             
         Raises:
             requests.RequestException: If the request fails.
@@ -210,8 +211,9 @@ class TorznabMonitor:
                 logger.debug(f"Title: {first_item.find('title').text if first_item.find('title') is not None else 'No title'}")
                 logger.debug(f"Link: {first_item.find('link').text if first_item.find('link') is not None else 'No link'}")
                 logger.debug(f"Categories: {list(self._extract_categories(first_item))}")
-                
-            return items
+            
+            # Return items in reverse order (newest first)
+            return list(reversed(items))
         except requests.Timeout:
             logger.error(f"Request timed out after 2 minutes for endpoint: {endpoint.url}")
             raise
@@ -274,8 +276,8 @@ class TorznabMonitor:
         try:
             items = self._fetch_torznab_feed(endpoint)
             
-            # Process items in reverse order to maintain FIFO
-            matching_items = self._process_items(reversed(items), endpoint.categories, mapping_name)
+            # Process items (already in reverse order)
+            matching_items = self._process_items(items, endpoint.categories, mapping_name)
             
             # Send notifications for matching items
             for item in matching_items:
