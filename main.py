@@ -268,7 +268,7 @@ class TorznabMonitor:
         """
         Initialize seen items with current feed items without sending notifications.
         Only items matching the configured categories will be marked as seen.
-        Existing seen items will be cleared before initialization.
+        Creates a new seen items file if it doesn't exist.
         
         Args:
             endpoint: The Torznab endpoint to initialize seen items for.
@@ -276,16 +276,19 @@ class TorznabMonitor:
         logger.info(f"Initializing seen items from current feed for endpoint: {endpoint.url}")
         try:
             mapping_name = f"{endpoint.name}-notifiarr"
+            seen_file = self._get_seen_file_path(mapping_name)
             
-            # Clear existing seen items file
-            self._clear_seen(mapping_name)
+            if seen_file.exists():
+                logger.info(f"Seen items file already exists for {mapping_name}, skipping initialization")
+                return
 
+            logger.info(f"Creating new seen items file for {mapping_name}")
             items = self._fetch_torznab_feed(endpoint)
             
             # Process items without sending notifications
             matching_items = self._process_items(items, endpoint.categories, mapping_name)
             
-            logger.info(f"Initialized seen items for {mapping_name}: {len(matching_items)} items")
+            logger.info(f"Initialized seen items for {mapping_name}: {len(matching_items)} items.")
         except Exception as e:
             logger.error(f"Failed to initialize seen items: {e}", exc_info=True)
 
@@ -293,13 +296,22 @@ class TorznabMonitor:
         """Start the Torznab monitor for all configured endpoints."""
 
         endpointDict = self.torznab_config.endpoints
-
-        # Initialize seen items first if not skipped
+        
+        # Initialize or poll based on seen files existence
         if not self.skip_init:
             for endpointKey in endpointDict:
-                self._init_torznab(endpointDict[endpointKey])
+                endpoint = endpointDict[endpointKey]
+                mapping_name = f"{endpoint.name}-notifiarr"
+                seen_file = self._get_seen_file_path(mapping_name)
+                
+                if seen_file.exists():
+                    logger.info(f"Found existing seen items file for {mapping_name}, polling feed...")
+                    self.poll_torznab(endpoint)
+                else:
+                    logger.info(f"No seen items file found for {mapping_name}, initializing...")
+                    self._init_torznab(endpoint)
         else:
-            logger.info("Skipping seen items initialization")
+            logger.info("Skipping initialization and polling")
         
         # Start the scheduler for each endpoint
         for endpointKey in endpointDict:
